@@ -1,0 +1,368 @@
+swagger: "2.0"
+info:
+  version: "0.0.1"
+  title: Модуль хранения связей между кодексом и сторонними системами
+host: localhost:10010
+basePath: /integration
+schemes:
+  - http
+consumes:
+  - application/json
+  - text/plain; charset=utf-8
+produces:
+  - application/json
+  - text/plain; charset=utf-8
+
+paths:
+  /:
+    x-swagger-router-controller: handshake
+    
+    post:
+      description: Регистрирует систему в модуле хранения
+      operationId: register
+      parameters:
+        - name: class
+          description: тип внешней системы (напрмер, intermech)
+          in: query
+          type: string
+          required: false
+        - name: fields
+          description: список параметров, которые будут сохранены при создании связи
+          in: body
+          required: true
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Field'
+      responses:
+        "200":
+          description: Success
+          schema:
+            type: string
+          examples:
+            string: intermech1
+        "402":
+          description: Payment Required
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Не найдена лицензия модуля хранения
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+            
+  /{systemId}:
+    x-swagger-router-controller: references
+    
+    get:
+      description: Возвращает список связей, подходящий по указанным параметрам
+      operationId: list
+      parameters:
+        - name: systemId
+          description: id конкретного экземплара сторонней системы (например, AAA111)
+          in: path
+          type: string
+          required: true
+        - name: changed
+          description: должны ли попадать в выборку только документы с изменениями
+          in: query
+          type: boolean
+          required: false
+        - name: from
+          description: начальная дата
+          in: query
+          type: string
+          format: date
+          required: false
+        - name: to
+          description: конечная дата
+          in: query
+          type: string
+          format: date
+          required: false
+        - name: fields
+          description: список параметров параметров со значениями, которые учитываются при отборе записей
+          in: body
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/FieldValue'
+      responses:
+        "200":
+          description: Success
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Reference'
+          examples:
+            application/json:
+              - oid: 1112435
+                kodeksLink: http://kodeks.ru/1112435
+                created: 1985-04-12T23:20:50.52Z
+                fields: 
+                  - name: guid
+                    value: 9w8yer 
+                  - name: userId
+                    value: vasya 
+                changeDate: 1985-04-12
+                changeDescription: Утратил силу
+              - oid: 22222
+                kodeksLink: http://kodeks.ru/22222
+                created: 1985-04-12T23:20:50.52Z
+                fields: 
+                  - name: guid
+                    value: 9w8yer 
+                  - name: userId
+                    value: vasya 
+                changeDate: 1985-04-12
+                changeDescription: Новая редакция
+        "402":
+          description: Payment Required
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Не найдена лицензия модуля хранения
+        "403":
+          description: Not Acceptable
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Ошибка при задании запроса
+        "404":
+          description: Not Found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Система с указанным id не зарегистрирована
+        default:
+          description: Error
+          
+    post:
+      description: Запрос на создание связи между документами сторонней системы и кодекса
+      operationId: create
+      parameters:
+        - name: systemId
+          description: id конкретного экземплара сторонней системы (например, AAA111)
+          in: path
+          type: string
+          required: true
+        - name: vdir
+          description: виртуальный каталог, в котором надо искать цель для связывания
+          in: query
+          type: string
+          required: false
+        - name: text
+          description: текст, по которому будет производиться поиск при выборе документа кодекс
+          in: query
+          type: string
+          required: false
+        - name: fields
+          description: список параметров параметров со значениями, которые будут сохранены
+          in: body
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/FieldValue'
+      responses:
+        "200":
+          description: Success
+          schema:
+            $ref: "#/definitions/ReferenceResponse"
+          examples:
+            application/json:
+              refId: 1234567890
+              link: http://172.16.2.4:8000/docs/check_iquery?_=1462888172483&query=%D1%82%D0%B5%D1%81%D1%82
+        "402":
+          description: Payment Required
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Не найдена лицензия модуля хранения
+        "403":
+          description: Not Acceptable
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Ошибка при задании запроса
+        "404":
+          description: Not Found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Система с указанным id не зарегистрирована
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+  /{systemId}/{refId}:
+    x-swagger-router-controller: references
+    put:
+      description: Фиксация oid документа кодекса для созданной на прошлом шаге записи о связи между документами
+      operationId: add
+      parameters:
+        - name: systemId
+          description: id конкретного экземплара сторонней системы (например, AAA111)
+          in: path
+          type: string
+          required: true
+        - name: refId
+          description: id связи, созданной на предыдущем шаге
+          in: path
+          type: string
+          required: true
+        - name: oid
+          description: oid документа кодекс, с которым нужно создать связь (например, 1462888172483)
+          in: query
+          required: true
+          type: number
+      responses:
+        "200":
+          description: Success
+          schema:
+            type: string
+          examples:
+            string: OK
+        "402":
+          description: Payment Required
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Не найдена лицензия модуля хранения
+        "403":
+          description: Not Acceptable
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Ошибка при задании запроса
+        "404":
+          description: Not Found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Система с указанным id не зарегистрирована
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    
+    delete:
+      description: Удаление записи
+      operationId: delete
+      parameters:
+        - name: systemId
+          description: id конкретного экземплара сторонней системы (например, AAA111)
+          in: path
+          type: string
+          required: true
+        - name: refId
+          description: id связи, созданной на предыдущем шаге
+          in: path
+          type: string
+          required: true
+      responses:
+        "200":
+          description: Success
+          schema:
+            type: string
+          examples:
+            string: OK
+        "402":
+          description: Payment Required
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Не найдена лицензия модуля хранения
+        "403":
+          description: Not Acceptable
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Ошибка при задании запроса
+        "404":
+          description: Not Found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            message: Система с указанным id не зарегистрирована
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ReferenceResponse"
+    
+  /swagger:
+    x-swagger-pipe: swagger_raw
+
+definitions:
+
+  Field:
+    type: object
+    required:
+      - name
+      - type
+    properties:
+      name:
+        type: string
+      type:
+        type: string
+        enum:
+          - string
+          - integer # signed 64 bits
+          - number # double
+          - date # as defined by full-date - RFC3339 (1985-04-12)
+          - date-time # as defined by date-time - RFC3339 (1985-04-12T23:20:50.52Z)
+
+  FieldValue:
+    type: object
+    required:
+      - name
+      - value
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+
+  Reference:
+    type: object
+    required:
+      - oid
+      - kodeksLink
+      - created
+      - fields
+    properties:
+      oid:
+        type: number
+      kodeksLink:
+        type: string
+      created:
+        type: string
+        format: date_time
+      fields:
+        type: array
+        items:
+          $ref: "#/definitions/FieldValue"
+      changeDate:
+        type: string
+        format: date
+      changeDescription:
+        type: string
+  
+  ReferenceResponse:
+    required:
+      - refId
+    properties:
+      refId:
+        type: string
+      link:
+        type: string
+        
+  ErrorResponse:
+    required:
+      - message
+    properties:
+      message:
+        type: string
